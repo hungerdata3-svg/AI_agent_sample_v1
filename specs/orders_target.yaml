@@ -1,0 +1,9 @@
+table: customer_orders
+granularity: one row per order_id
+primary_key: order_id
+columns:
+  order_id:      {type: string, required: true}
+  customer_id:   {type: string, required: true}
+  order_date:    {type: date, required: true}
+  amount:        {type: decimal, required: true, min: 0}
+  status:        {type: string, required: true, allowed: [NEW, SHIPPED, DELIVERED, CANCELLED]}
