@@ -50,7 +50,8 @@ def parse_reply(text: str) -> dict:
     }
 
 
-def final_verdict(total: float, deterministic: dict) -> str:
+def final_verdict(total: float, deterministic: dict) -> tuple[str, str]:
+    """Return (verdict, reason). Score bands first, then the critical-check cap."""
     if total >= 85:
         verdict = "APPROVE"
     elif total >= 60:
@@ -58,21 +59,17 @@ def final_verdict(total: float, deterministic: dict) -> str:
     else:
         verdict = "REJECT"
 
-    critical_failed = any(
-        not ok and desc.startswith(CRITICAL_CHECKS)
+    reason = "score band"
+    failed_critical = [
+        desc
         for area in deterministic["areas"].values()
         for desc, ok in area["checks"]
-    )
-    if critical_failed and verdict == "APPROVE":
-        verdict, reason = final_verdict(total, deterministic)
-    return {
-        "total": total,
-        "verdict": verdict,
-        "verdict_reason": reason,
-        "judgment": reply["judgment"],
-        "model_verdict": reply["model_verdict"],
-        "summary": reply["summary"],
-    }
+        if not ok and desc.startswith(CRITICAL_CHECKS)
+    ]
+    if failed_critical and verdict == "APPROVE":
+        verdict = "APPROVE WITH CHANGES"
+        reason = "capped: critical check failed: " + "; ".join(failed_critical)
+    return verdict, reason
 
 
 def review(code_path: str, deterministic: dict, spec_path: str = "specs/orders_target.yaml") -> dict:
@@ -81,9 +78,11 @@ def review(code_path: str, deterministic: dict, spec_path: str = "specs/orders_t
     reply = parse_reply(ask_gemini(build_prompt(code_text, spec_text, deterministic)))
 
     total = round(deterministic["deterministic_total"] + reply["judgment"], 1)
+    verdict, reason = final_verdict(total, deterministic)
     return {
         "total": total,
-        "verdict": final_verdict(total, deterministic),
+        "verdict": verdict,
+        "verdict_reason": reason,
         "judgment": reply["judgment"],
         "model_verdict": reply["model_verdict"],
         "summary": reply["summary"],
